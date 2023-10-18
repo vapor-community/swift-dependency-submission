@@ -43,7 +43,8 @@ runs:
         # If there's a preexisting Package.resolved, Git knows about it, and it's unmodified,
         # this action has nothing to do; a correct Dependabot configuration will already
         # process that file.
-        if [[ -z "$(git -C "${PROJ}" status --porcelain --untracked-files=all --ignored=matching -- Package.resolved)" ]]; then
+        if [[ -f "${PROJ}/Package.resolved" && \
+              -z "$(git -C "${PROJ}" status --porcelain -uall --ignored -- Package.resolved)" ]]; then
           echo "Dependencies are autodetected when Package.resolved is committed, exiting."
           exit 0
         elif [[ -f "${PROJ}/Package.resolved" ]]; then
