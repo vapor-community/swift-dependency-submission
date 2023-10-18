@@ -1,0 +1,67 @@
+name: generate-swift-dependencies
+description: Submit the dependencies of a Swift project to the Github API
+
+inputs:
+  path:
+    description: The path to the checked-out package to generate dependencies for. Defaults to workspace.
+    required: false
+    default: ${{ github.workspace }}
+  repository:
+    description: The Github repo to submit the dependencies to. Defaults to current.
+    required: false
+    default: ${{ github.repository }}
+  branch:
+    description: The branch to associate the dependency submission with. Defaults to ref.
+    required: false
+    default: ${{ github.ref }}
+  commit:
+    description: The commit from which the dependencies are generated. Defaults to current.
+    required: false
+    default: ${{ github.sha }}
+  token:
+    description: Github access token to use for submitting the dependencies.
+    required: false
+    default: ${{ github.token }}
+  metadata:
+    required: false
+    description: 'User provided map of max 8 key/value pairs of metadata to include with the snapshot e.g. {"lastModified": "12-31-2022"}'
+
+runs:
+  using: composite
+  steps:
+    - name: Convert dependency graph
+      id: graph
+      env:
+        PROJ: ${{ inputs.path || github.workspace }}
+        BRANCH: ${{ inputs.branch || github.ref }}
+        COMMIT: ${{ inputs.commit || github.sha }}
+        CORRELATOR: ${{ github.workflow_ref }}-${{ github.job }}-${{ github.action }}-${{ runner.os }}
+        RUN_ID: ${{ github.run_id }}
+        REPO_SPEC: ${{ inputs.repository || github.repository }}
+        TOKEN: ${{ inputs.token || github.token }}
+      shell: bash
+      run: |
+        # If there's a preexisting Package.resolved, Git knows about it, and it's unmodified,
+        # this action has nothing to do; a correct Dependabot configuration will already
+        # process that file.
+        if [[ -z "$(git -C "${PROJ}" status --porcelain --untracked-files=all --ignored=matching -- Package.resolved)" ]]; then
+          echo "Dependencies are autodetected when Package.resolved is committed, exiting."
+          exit 0
+        elif [[ -f "${PROJ}/Package.resolved" ]]; then
+          # If a resolved file is already present due to something that was done before
+          # this action was invoked, leave it alone and use it as-is.
+          true
+        else
+          # No resolved file exists, we need to generate it.
+          swift package --package-path "${PROJ}" --skip-update resolve
+        fi
+
+        swift package --package-path "${PROJ}" --skip-update --force-resolved-versions show-dependencies --format json | \
+          "${GITHUB_ACTION_PATH}/convert-dependency-graph.swift" | \
+          curl -fLv \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "${GITHUB_API_URL}/repos/${REPO_SPEC}/dependency-graph/snapshots" \
+            --data @-
