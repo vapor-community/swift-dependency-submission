@@ -1,0 +1,23 @@
+name: Swift Dependency Submission
+on:
+  push:
+    branches:
+      - main
+
+# The API requires write permission on the repository to submit dependencies
+permissions:
+  contents: write
+
+jobs:
+  swift-action-detection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v4
+
+      - uses: vapor/swiftly-action@v0.1
+        with:
+          toolchain: '5.9'
+
+      - name: Run snapshot action
+        uses: vapor-community/swift-dependency-submission@v0.1
