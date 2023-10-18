@@ -7,7 +7,7 @@ struct PackageDependency: Codable {
     let dependencies: [PackageDependency]
 }
 
-struct SwiftPUrl: Codable, RawRepresentable {
+struct SwiftPUrl: Codable, RawRepresentable, Hashable {
     let scheme: String, type: String, source: String, name: String, version: String
     
     var rawValue: String { "\(self.scheme):\(self.type)/\(self.source)/\(self.name)@\(self.version)" }
@@ -42,7 +42,7 @@ struct GithubDependencyGraph: Codable {
                 self.relationship = relationship
             }
         }
-        let name: String, file: File, resolved: [SwiftPUrl: Package]
+        let name: String, file: File, resolved: [String: Package]
     }
     let version: Int, sha: String, ref: String, job: Job, detector: Detector,
         scanned: Date, manifests: [String: Manifest]
@@ -81,14 +81,16 @@ func main() {
     var resolved = [SwiftPUrl: GithubDependencyGraph.Manifest.Package]()
     
     func handleDeps(_ dependencies: [PackageDependency]) {
-        for dep in dependencies where !resolved.keys.contains(dep.identity) {
-            handleDeps(dep.dependencies)
-            guard !resolved.keys.contains(dep.identity) else { continue }
+        for dep in dependencies {
             guard let url = URL(string: dep.url) else {
                 fail("Invalid URL for package \(dep.identity)")
             }
-            resolved[.init(with: url, version: dep.version)] = .init(
-                package_url: .init(with: url, version: dep.version),
+            let purl = SwiftPUrl(with: url, version: dep.version)
+            guard !resolved.keys.contains(purl) else { continue }
+            handleDeps(dep.dependencies)
+            guard !resolved.keys.contains(purl) else { continue }
+            resolved[purl] = .init(
+                package_url: purl,
                 dependencies: dep.dependencies.map {
                     SwiftPUrl(with: URL(string: $0.url)!, version: $0.version).rawValue
                 }.sorted(),
@@ -110,7 +112,7 @@ func main() {
         manifests: ["Package.resolved": .init(
             name: "Package.resolved",
             file: .init(source_location: "Package.resolved"),
-            resolved: resolved
+            resolved: .init(uniqueKeysWithValues: resolved.map { ($0.rawValue, $1) })
         )]
     )
     
