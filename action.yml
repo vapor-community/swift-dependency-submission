@@ -36,7 +36,6 @@ runs:
         BRANCH: ${{ inputs.branch || github.ref }}
         COMMIT: ${{ inputs.commit || github.sha }}
         CORRELATOR: ${{ github.workflow_ref }}-${{ github.job }}-${{ github.action }}-${{ runner.os }}
-        RUN_ID: ${{ github.run_id }}
         REPO_SPEC: ${{ inputs.repository || github.repository }}
         TOKEN: ${{ inputs.token || github.token }}
       shell: bash
