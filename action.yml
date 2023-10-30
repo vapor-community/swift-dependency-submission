@@ -25,6 +25,10 @@ inputs:
   metadata:
     required: false
     description: 'User provided map of max 8 key/value pairs of metadata to include with the snapshot e.g. {"lastModified": "12-31-2022"}'
+  force:
+    required: false
+    default: false
+    description: If true, dependencies are submitted even if the source repository contains a committed Package.resolved file.
 
 runs:
   using: composite
@@ -38,13 +42,15 @@ runs:
         CORRELATOR: ${{ github.workflow_ref }}-${{ github.job }}-${{ github.action }}-${{ runner.os }}
         REPO_SPEC: ${{ inputs.repository || github.repository }}
         TOKEN: ${{ inputs.token || github.token }}
+        FORCE: ${{ inputs.force }}
       shell: bash
       run: |
         # If there's a preexisting Package.resolved, Git knows about it, and it's unmodified,
         # this action has nothing to do; a correct Dependabot configuration will already
         # process that file.
         if [[ -f "${PROJ}/Package.resolved" && \
-              -z "$(git -C "${PROJ}" status --porcelain -uall --ignored -- Package.resolved)" ]]; then
+              -z "$(git -C "${PROJ}" status --porcelain -uall --ignored -- Package.resolved)" && \
+              "${FORCE}" != 'true' ]]; then
           echo "Dependencies are autodetected when Package.resolved is committed, exiting."
           exit 0
         elif [[ -f "${PROJ}/Package.resolved" ]]; then
