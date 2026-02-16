@@ -25,10 +25,6 @@ inputs:
   metadata:
     required: false
     description: 'User provided map of max 8 key/value pairs of metadata to include with the snapshot e.g. {"lastModified": "12-31-2022"}'
-  force:
-    required: false
-    default: false
-    description: If true, dependencies are submitted even if the source repository contains a committed Package.resolved file.
 
 runs:
   using: composite
@@ -42,28 +38,26 @@ runs:
         CORRELATOR: ${{ github.workflow_ref }}-${{ github.job }}-${{ github.action }}-${{ runner.os }}
         REPO_SPEC: ${{ inputs.repository || github.repository }}
         TOKEN: ${{ inputs.token || github.token }}
-        FORCE: ${{ inputs.force }}
       shell: bash
       run: |
-        # If there's a preexisting Package.resolved, Git knows about it, and it's unmodified,
-        # this action has nothing to do; a correct Dependabot configuration will already
-        # process that file.
-        if [[ -f "${PROJ}/Package.resolved" && \
-              -z "$(git -C "${PROJ}" status --porcelain -uall --ignored -- Package.resolved)" && \
-              "${FORCE}" != 'true' ]]; then
-          echo "Dependencies are autodetected when Package.resolved is committed, exiting."
-          exit 0
-        elif [[ -f "${PROJ}/Package.resolved" ]]; then
-          # If a resolved file is already present due to something that was done before
-          # this action was invoked, leave it alone and use it as-is.
-          true
-        else
-          # No resolved file exists, we need to generate it.
-          swift package --package-path "${PROJ}" --skip-update resolve
+        if [[ -z "$(command -v curl)" || -z "$(command -v jq)" ]]; then
+          sudo apt-get -q update && sudo apt-get -yq install curl jq
+        fi
+        # TODO: When SE-0509 is implemented, replace this with that.
+        if [[ -z "$(command -v trivy)" ]]; then
+          sudo curl -qsL -o /etc/apt/keyrings/trivy.asc 'https://aquasecurity.github.io/trivy-repo/deb/public.key'
+          sudo bash -c 'echo "deb [signed-by=/etc/apt/keyrings/trivy.asc] https://aquasecurity.github.io/trivy-repo/deb generic main" >> /etc/apt/sources.list.d/trivy.list'
+          sudo apt-get -q update && sudo apt-get -yq install trivy
+        fi
+        
+        # If there's no Package.resolved, we need to generate one.
+        if [[ ! -f "${PROJ}/Package.resolved" ]]; then
+          swift package --package-path "${PROJ}" --disable-dependency-cache resolve
         fi
 
-        swift package --package-path "${PROJ}" --skip-update --force-resolved-versions show-dependencies --format json | \
-          "${GITHUB_ACTION_PATH}/convert-dependency-graph.swift" | \
+        trivy filesystem "${PROJ}" -f github --disable-telemetry --scanners '' --skip-check-update --skip-db-update --skip-dirs .build -q --offline-scan | \
+          jq -c --arg sha "${COMMIT}" --arg ref "${BRANCH}" --arg id "${GITHUB_RUN_ID}" --arg cor "${CORRELATOR}" \
+                '.sha = $sha | .ref = $ref | .job = { id: $id, correlator: $cor }' |\
           curl -fLv \
             -H 'Accept: application/vnd.github+json' \
             -H 'Content-Type: application/json' \
