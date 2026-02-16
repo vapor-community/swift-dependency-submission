@@ -17,7 +17,7 @@ jobs:
 
       - uses: vapor/swiftly-action@v0.2
         with:
-          toolchain: '5.9'
+          toolchain: latest
 
       - name: Run snapshot action
-        uses: vapor-community/swift-dependency-submission@v0.1
+        uses: vapor-community/swift-dependency-submission@v0.2
