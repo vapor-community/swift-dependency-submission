@@ -48,7 +48,7 @@ runs:
         if [[ -z "$(command -v trivy)" ]]; then
           $SUDO curl -qsL -o /etc/apt/keyrings/trivy.asc 'https://aquasecurity.github.io/trivy-repo/deb/public.key'
           $SUDO bash -c 'echo "deb [signed-by=/etc/apt/keyrings/trivy.asc] https://aquasecurity.github.io/trivy-repo/deb generic main" >> /etc/apt/sources.list.d/trivy.list'
-          $SUDO apt-get -q update && sudo apt-get -yq install trivy
+          $SUDO apt-get -q update && $SUDO apt-get -yq install trivy
         fi
         
         # If there's no Package.resolved, we need to generate one.
