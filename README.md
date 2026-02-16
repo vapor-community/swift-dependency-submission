@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout Repository'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - uses: vapor/swiftly-action@v0.1
+      - uses: vapor/swiftly-action@v0.2
         with:
-          toolchain: 5.9
+          toolchain: latest
 
       - name: Run snapshot action
-        uses: actions/swift-dependency-submission@v0.1
+        uses: actions/swift-dependency-submission@v0.2
 ```
